@@ -22,13 +22,17 @@
 
 #define DHTPIN 21     // Digital pin connected to the DHT sensor
 
+#define DHT_INVALID_NUMBER  10
+
 //#define DHTTYPE DHT11   // DHT 11
 #define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
 //#define DHTTYPE DHT21   // DHT 21 (AM2301)
 DHT dht(DHTPIN, DHTTYPE);
 
 volatile float tempDht, humDht;
+volatile boolean tempDataValid;
 //volatile char tempString[4];
+static volatile int dhtInvalidCount = 0;
 
 TaskHandle_t checkTempHumTask;
 TaskHandle_t mqttKeepAliveTask;
@@ -90,6 +94,9 @@ void setup_wifi() {
 
 void setup()
 {
+  tempDataValid = false;
+  //dhtInvalidCount = 0;
+  
   Serial.begin(115200);
   setup_wifi();
   //Ethernet.begin(mac, ip);
@@ -141,15 +148,27 @@ void mqttUploadTempHumTaskFunction( void * pvParameters ){
   float a = 1.1;
   float temperature = 4.5;
   char tempString[8];
-  //dtostrf(tempDht, 1, 2, tempString);
+  char humString[8];
+  
   while(1){
       dtostrf(tempDht, 1, 2, tempString);
+      dtostrf(humDht, 1, 2, humString);
       
       if (client.connect("arduinoClient")) {
           Serial.print("Connected to broker. Begin Publish message ");
           //client.publish("outTopic","hello world");
           //client.subscribe("inTopic");
-          client.publish("sensors",tempString);
+
+          if(tempDataValid == true){
+              if(dhtInvalidCount < DHT_INVALID_NUMBER){
+                  client.publish("sensors/temp1",tempString);
+                  delay(5000);
+                  client.publish("sensors/hum1",humString);
+              }
+              else{
+                  client.publish("sensors/temp1","99.99");
+              }
+          }
           //client.subscribe("sensors");
           
           delay(30000);
@@ -159,6 +178,8 @@ void mqttUploadTempHumTaskFunction( void * pvParameters ){
           Serial.print("Can not connected to broker ");
           delay(2000);
      }
+
+     
   }
 }
 
@@ -185,8 +206,11 @@ void checkTempHumTaskFunction( void * pvParameters ){
       if (isnan(h) || isnan(t) || isnan(f)) {
           Serial.println(F("Failed to read from DHT sensor!"));
           delay(2000);
+          dhtInvalidCount++;
       }
       else{
+          dhtInvalidCount = 0;
+          tempDataValid = true;
           tempDht = t;
           humDht = h;          
           hif = dht.computeHeatIndex(f, h);

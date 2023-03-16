@@ -23,6 +23,7 @@
 #define DHTPIN 21     // Digital pin connected to the DHT sensor
 
 #define DHT_INVALID_NUMBER  10
+#define LOSS_WIFI_NUMBER    70
 
 //#define DHTTYPE DHT11   // DHT 11
 #define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
@@ -33,6 +34,7 @@ volatile float tempDht, humDht;
 volatile boolean tempDataValid;
 //volatile char tempString[4];
 static volatile int dhtInvalidCount = 0;
+static volatile int invalidWifiCount = 0;
 
 TaskHandle_t checkTempHumTask;
 TaskHandle_t mqttKeepAliveTask;
@@ -158,7 +160,7 @@ void mqttUploadTempHumTaskFunction( void * pvParameters ){
           Serial.print("Connected to broker. Begin Publish message ");
           //client.publish("outTopic","hello world");
           //client.subscribe("inTopic");
-
+          invalidWifiCount = 0;
           if(tempDataValid == true){
               if(dhtInvalidCount < DHT_INVALID_NUMBER){
                   client.publish("sensors/temp1",tempString);
@@ -177,6 +179,11 @@ void mqttUploadTempHumTaskFunction( void * pvParameters ){
       else{
           Serial.print("Can not connected to broker ");
           delay(2000);
+          invalidWifiCount++;
+          if(invalidWifiCount > LOSS_WIFI_NUMBER){
+              Serial.print("Loss WIFI. Restart ESP to fix");
+              ESP.restart();    
+          }
      }
 
      
@@ -234,40 +241,4 @@ void checkTempHumTaskFunction( void * pvParameters ){
 
 void loop()
 {
-  //client.loop();
-
-/*
-  delay(20000);
-
-  // Reading temperature or humidity takes about 250 milliseconds!
-  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-  float h = dht.readHumidity();
-  // Read temperature as Celsius (the default)
-  float t = dht.readTemperature();
-  // Read temperature as Fahrenheit (isFahrenheit = true)
-  float f = dht.readTemperature(true);
-
-  // Check if any reads failed and exit early (to try again).
-  if (isnan(h) || isnan(t) || isnan(f)) {
-    Serial.println(F("Failed to read from DHT sensor!"));
-    return;
-  }
-
-  // Compute heat index in Fahrenheit (the default)
-  float hif = dht.computeHeatIndex(f, h);
-  // Compute heat index in Celsius (isFahreheit = false)
-  float hic = dht.computeHeatIndex(t, h, false);
-
-  Serial.print(F("Humidity: "));
-  Serial.print(h);
-  Serial.print(F("%  Temperature: "));
-  Serial.print(t);
-  Serial.print(F("°C "));
-  Serial.print(f);
-  Serial.print(F("°F  Heat index: "));
-  Serial.print(hic);
-  Serial.print(F("°C "));
-  Serial.print(hif);
-  Serial.println(F("°F"));
- */ 
 }
